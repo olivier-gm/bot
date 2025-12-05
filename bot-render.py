@@ -8,7 +8,7 @@ from threading import Thread
 import time
 
 # --- 1. CONFIGURACIÓN ---
-TOKEN = 'TU_TOKEN_AQUI' 
+TOKEN = '8556444811:AAF0m841XRL-35xSX6g5DNyr-DWoml0JYNA' 
 # Usamos tu URL de producción
 API_BASE_URL = 'https://valery-1.onrender.com/ask' 
 
@@ -108,4 +108,5 @@ if __name__ == "__main__":
     keep_alive() # Arranca el servidor web falso
     print("Iniciando Polling...")
     # infinity_polling es más robusto que polling normal
+
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
