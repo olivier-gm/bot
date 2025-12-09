@@ -9,28 +9,62 @@ import time
 
 # --- 1. CONFIGURACIÓN ---
 TOKEN = '8556444811:AAF0m841XRL-35xSX6g5DNyr-DWoml0JYNA' 
-# Usamos tu URL de producción
-API_BASE_URL = 'https://valery-1.onrender.com/ask' 
+
+# URL de tu API (Valery)
+URL_API_VALERY = 'https://valery-1.onrender.com' 
+
+# ⚠️ URL DE ESTE MISMO BOT (Llénala cuando Render te la asigne)
+# Ejemplo: 'https://mi-bot-telegram.onrender.com'
+# Si la dejas vacía, el bot funcionará pero podría dormirse a los 15 min.
+URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com" 
 
 bot = telebot.TeleBot(TOKEN)
 
-# --- 2. TRUCO PARA MANTENERLO VIVO EN RENDER ---
-# Render exige que abras un puerto web. Si no, mata la app.
+# --- 2. SERVIDOR WEB (Para que Render detecte tráfico entrante) ---
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "¡Bot funcionando OK!"
+    return "🤖 Bot Activo. Sistema Keep-Alive funcionando."
 
 def run_web():
-    # Render nos da el puerto en la variable de entorno PORT
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
 
-def keep_alive():
-    t = Thread(target=run_web)
-    t.start()
+# --- 3. FUNCIÓN MATAPÁJAROS (KEEP ALIVE DOBLE) ---
+def ping_services():
+    while True:
+        # Esperamos 14 minutos (840 seg). Render duerme a los 15 min.
+        time.sleep(840) 
+        
+        print("⏰ Iniciando ciclo de Keep-Alive...")
+        
+        try:
+            # PÁJARO 1: Despertar a la API (Valery)
+            # Asumiendo que tu API tiene una ruta '/' o '/ping' que responde rápido
+            requests.get(f"{URL_API_VALERY}/", timeout=10)
+            print("✅ Ping enviado a API Valery-1")
+        except Exception as e:
+            print(f"⚠️ Falló ping a Valery: {e}")
 
-# --- 3. LÓGICA DEL BOT ---
+        try:
+            # PÁJARO 2: Despertar al Bot (A sí mismo)
+            # Esto es OBLIGATORIO para que Render sepa que el bot sigue vivo
+            if URL_PROPIA_DEL_BOT.startswith("http"):
+                requests.get(URL_PROPIA_DEL_BOT, timeout=10)
+                print("✅ Auto-Ping enviado al Bot (Yo mismo)")
+            else:
+                print("ℹ️ URL del bot no configurada. Recuerda ponerla tras el deploy.")
+        except Exception as e:
+            print(f"⚠️ Falló Auto-Ping: {e}")
+
+def keep_alive():
+    t_server = Thread(target=run_web)
+    t_server.start()
+    
+    t_ping = Thread(target=ping_services)
+    t_ping.start()
+
+# --- 4. LÓGICA DEL BOT ---
 COINS = ["BTC", "ETH", "SOL", "RAY", "XRP", "SUI"]
 
 def generar_botones():
@@ -48,30 +82,25 @@ def send_welcome(message):
         bot.reply_to(message, "🤖 **Crypto Analizador AI**\n\nElige una moneda:", 
                      reply_markup=generar_botones(), parse_mode="Markdown")
     except Exception as e:
-        print(f"Error en start: {e}")
+        print(f"Error start: {e}")
 
 @bot.callback_query_handler(func=lambda call: call.data in COINS)
 def callback_query(call):
     crypto = call.data
-    # Usamos try-except para que el bot no muera si Telegram falla al responder
     try:
         bot.answer_callback_query(call.id, f"Consultando {crypto}...")
     except:
-        pass # A veces falla si el usuario clickea muy rápido, lo ignoramos
+        pass 
 
     try:
-        # IMPORTANTE: Aquí NO usamos proxies. En Render la conexión es limpia.
-        print(f"Consultando API para {crypto}...")
-        response = requests.get(f"{API_BASE_URL}?crypto={crypto}", timeout=60)
+        # Petición a la API
+        response = requests.get(f"{URL_API_VALERY}/ask?crypto={crypto}", timeout=60)
         
         if response.status_code == 200:
             data = response.json()
-            
-            # Verificamos estructura
             if 'JSONprompt' in data and data['JSONprompt'].get('aiResponse'):
                 raw_ai = data['JSONprompt']['aiResponse']
                 
-                # A veces la IA devuelve un objeto directo, a veces un string.
                 if isinstance(raw_ai, str):
                     ai_data = json.loads(raw_ai)
                 else:
@@ -94,19 +123,15 @@ def callback_query(call):
                 )
                 bot.send_message(call.message.chat.id, mensaje, parse_mode="Markdown")
             else:
-                bot.send_message(call.message.chat.id, "⚠️ La IA no devolvió datos válidos.")
+                bot.send_message(call.message.chat.id, "⚠️ Datos insuficientes.")
         else:
             bot.send_message(call.message.chat.id, f"⚠️ Error API: {response.status_code}")
 
     except Exception as e:
-        print(f"ERROR FATAL: {e}")
-        bot.send_message(call.message.chat.id, "❌ Error de conexión con el servidor.")
+        print(f"ERROR: {e}")
+        bot.send_message(call.message.chat.id, "❌ Error de conexión.")
 
-# --- 4. ARRANQUE ---
+# --- 5. ARRANQUE ---
 if __name__ == "__main__":
-    print("Iniciando Web Server...")
-    keep_alive() # Arranca el servidor web falso
-    print("Iniciando Polling...")
-    # infinity_polling es más robusto que polling normal
-
+    keep_alive() 
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
