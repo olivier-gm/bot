@@ -41,7 +41,7 @@ def ping_services():
         try:
             # PÁJARO 1: Despertar a la API (Valery)
             # Asumiendo que tu API tiene una ruta '/' o '/ping' que responde rápido
-            requests.get(f"{URL_API_VALERY}/", timeout=10)
+            requests.get(f"{URL_API_VALERY}/ping", timeout=10)
             print("✅ Ping enviado a API Valery-1")
         except Exception as e:
             print(f"⚠️ Falló ping a Valery: {e}")
@@ -135,3 +135,4 @@ def callback_query(call):
 if __name__ == "__main__":
     keep_alive() 
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
+
