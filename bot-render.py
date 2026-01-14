@@ -16,8 +16,8 @@ URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
 
 # --- CONFIGURACIÓN SUPABASE ---
 # En Render, es mejor poner esto en "Environment Variables", pero puedes pegarlo aquí para probar.
-SUPABASE_URL = "aws-0-us-west-2.pooler.supabase.com" 
-SUPABASE_KEY = "WEARECHARLIEKIRK27283922**"
+SUPABASE_URL = "https://aodhfcpabmjvyusrohjh.supabase.co" 
+SUPABASE_KEY = "sb_publishable_4_8oRB_GIlwr1f1EskKn0A_YY0uMJPI"
 
 # Inicializamos el cliente de Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -218,3 +218,4 @@ def handle_query(call):
 if __name__ == "__main__":
     keep_alive() 
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
+
