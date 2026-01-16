@@ -4,23 +4,22 @@ import requests
 import json
 import os
 import time
-import re  # <--- NUEVO: Para limpiar la respuesta de la IA con Regex
+import re
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from flask import Flask
 from threading import Thread
 from supabase import create_client, Client
 
 # --- 1. CONFIGURACIÓN ---
-TOKEN = '8556444811:AAF0m841XRL-35xSX6g5DNyr-DWoml0JYNA' 
+TOKEN = '8556444811:AAF0m841XRL-35xSX6g5DNyr-DWoml0JYNA'
+# Tu IP directa del VPS
 URL_API_VALERY = 'http://167.86.80.129:3000' 
-URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com" 
+URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
 
-# --- CONFIGURACIÓN SUPABASE ---
-# En Render, es mejor poner esto en "Environment Variables", pero puedes pegarlo aquí para probar.
-SUPABASE_URL = "https://aodhfcpabmjvyusrohjh.supabase.co" 
-SUPABASE_KEY = "sb_publishable_4_8oRB_GIlwr1f1EskKn0A_YY0uMJPI"
+# Variables Supabase
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "TU_URL_HTTPS_SUPABASE_CO")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "TU_KEY_ANON")
 
-# Inicializamos el cliente de Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 CREDITOS_INICIALES = 3
@@ -28,41 +27,53 @@ PRECIO_PAQUETE = "5 USDT"
 
 bot = telebot.TeleBot(TOKEN)
 
-# --- HELPER: LIMPIEZA DE JSON ---
-def parsear_respuesta_ia(texto_sucio):
-    """
-    Intenta extraer y convertir el JSON incluso si la IA manda texto extra
-    o bloques de código Markdown (```json ... ```).
-    """
-    if not isinstance(texto_sucio, str):
-        return texto_sucio # Ya es un objeto, lo devolvemos tal cual
+# --- 2. HERRAMIENTAS DE LIMPIEZA JSON ---
+
+def limpiar_json_string(texto):
+    """Limpia cadenas sucias con markdown o basura extra"""
+    if not isinstance(texto, str): return texto
     
-    try:
-        # 1. Intento directo
-        return json.loads(texto_sucio)
-    except:
-        pass
-
-    try:
-        # 2. Limpieza de Markdown (```json ... ```)
-        limpio = texto_sucio.replace("```json", "").replace("```", "").strip()
-        return json.loads(limpio)
-    except:
-        pass
-
-    try:
-        # 3. Búsqueda con Regex (Busca el primer '{' y el último '}')
-        match = re.search(r'\{.*\}', texto_sucio, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-    except:
-        pass
+    # Intento 1: Limpieza básica
+    limpio = texto.replace("```json", "").replace("```", "").strip()
+    try: return json.loads(limpio)
+    except: pass
     
-    # Si todo falla, lanzamos error para devolver el crédito
-    raise ValueError(f"No se pudo parsear JSON: {texto_sucio[:50]}...")
+    # Intento 2: Buscar { ... } con Regex
+    try:
+        match = re.search(r'\{.*\}', texto, re.DOTALL)
+        if match: return json.loads(match.group())
+    except: pass
+    
+    return None
 
-# --- 2. GESTIÓN DE BASE DE DATOS ---
+def buscar_datos_ia(data):
+    """
+    BUSCADOR INTELIGENTE:
+    Busca los datos de predicción sin importar la estructura del JSON.
+    """
+    # 1. ¿Está la predicción directamente aquí? (Caso: API devuelve solo la respuesta IA)
+    if isinstance(data, dict) and 'prediction' in data:
+        return data
 
+    # 2. ¿Está dentro de 'JSONprompt'? (Caso: API devuelve wrapper)
+    if isinstance(data, dict) and 'JSONprompt' in data:
+        return buscar_datos_ia(data['JSONprompt'])
+
+    # 3. ¿Está dentro de 'aiResponse'? (Caso: Wrapper intermedio)
+    if isinstance(data, dict) and 'aiResponse' in data:
+        contenido = data['aiResponse']
+        # Si aiResponse es un string, lo limpiamos y parseamos
+        if isinstance(contenido, str):
+            contenido_parseado = limpiar_json_string(contenido)
+            if contenido_parseado:
+                return buscar_datos_ia(contenido_parseado)
+        else:
+            return buscar_datos_ia(contenido)
+            
+    return None
+
+# --- 3. BASE DE DATOS (SUPABASE) ---
+# (Idéntico a antes, funciona bien)
 def get_user_credits(user_id):
     try:
         response = supabase.table('users').select("credits").eq("user_id", user_id).execute()
@@ -71,7 +82,7 @@ def get_user_credits(user_id):
             return CREDITOS_INICIALES
         return response.data[0]['credits']
     except Exception as e:
-        print(f"❌ Error Supabase (Get): {e}")
+        print(f"❌ Error Supabase: {e}")
         return 0
 
 def deduct_credit(user_id):
@@ -79,147 +90,124 @@ def deduct_credit(user_id):
         current = get_user_credits(user_id)
         if current > 0:
             supabase.table('users').update({"credits": current - 1}).eq("user_id", user_id).execute()
-    except Exception as e:
-        print(f"❌ Error Supabase (Deduct): {e}")
+    except: pass
 
 def add_credits(user_id, amount):
     try:
         current = get_user_credits(user_id)
         supabase.table('users').update({"credits": current + amount}).eq("user_id", user_id).execute()
-    except Exception as e:
-        print(f"❌ Error Supabase (Add): {e}")
+    except: pass
 
-# --- 3. SERVIDOR WEB + KEEP ALIVE ---
+# --- 4. SERVIDOR WEB + KEEP ALIVE ---
 app = Flask('')
 
 @app.route('/')
-def home():
-    return "🤖 Bot Activo v2.0"
+def home(): return "🤖 Bot Activo v3.0 (Smart Parser)"
 
 def run_web():
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
 
 def ping_services():
     while True:
-        time.sleep(840) 
+        time.sleep(840)
         try: requests.get(f"{URL_API_VALERY}/ping", timeout=10)
         except: pass
         try: requests.get(URL_PROPIA_DEL_BOT, timeout=10)
         except: pass
 
 def keep_alive():
-    t_server = Thread(target=run_web)
-    t_server.start()
-    t_ping = Thread(target=ping_services)
-    t_ping.start()
+    t = Thread(target=run_web)
+    t.start()
+    t2 = Thread(target=ping_services)
+    t2.start()
 
-# --- 4. BOTONES ---
+# --- 5. LOGICA BOT ---
 COINS = ["BTC", "ETH", "SOL", "RAY", "XRP", "SUI"]
 
-def generar_botones_monedas():
-    markup = InlineKeyboardMarkup()
-    markup.row_width = 3
-    botones = []
-    for coin in COINS:
-        botones.append(InlineKeyboardButton(coin, callback_data=f"analyze_{coin}"))
-    markup.add(*botones)
-    return markup
+def botones():
+    m = InlineKeyboardMarkup(row_width=3)
+    b = [InlineKeyboardButton(c, callback_data=f"a_{c}") for c in COINS]
+    m.add(*b)
+    return m
 
-def generar_boton_pago():
-    markup = InlineKeyboardMarkup()
-    btn_pagar = InlineKeyboardButton(f"💎 Comprar 10 Créditos ({PRECIO_PAQUETE})", callback_data="buy_pack")
-    markup.add(btn_pagar)
-    return markup
+def btn_pago():
+    m = InlineKeyboardMarkup()
+    m.add(InlineKeyboardButton(f"💎 Recargar ({PRECIO_PAQUETE})", callback_data="buy"))
+    return m
 
-# --- 5. COMANDOS ---
-
-@bot.message_handler(commands=['start', 'menu'])
-def send_welcome(message):
-    uid = message.chat.id
-    creditos = get_user_credits(uid)
-    texto = f"🤖 **Crypto Analizador AI**\n👤 ID: `{uid}`\n💰 Créditos: **{creditos}**\n\nElige una moneda:"
-    bot.reply_to(message, texto, reply_markup=generar_botones_monedas(), parse_mode="Markdown")
-
-@bot.message_handler(commands=['saldo', 'comprar'])
-def check_balance(message):
-    uid = message.chat.id
-    creditos = get_user_credits(uid)
-    bot.reply_to(message, f"💰 Tienes **{creditos}** créditos.\n¿Recargar?", reply_markup=generar_boton_pago(), parse_mode="Markdown")
-
-# --- 6. HANDLER PRINCIPAL ---
+@bot.message_handler(commands=['start'])
+def start(msg):
+    c = get_user_credits(msg.chat.id)
+    bot.reply_to(msg, f"🤖 **Crypto AI**\n💰 Créditos: {c}\nElige:", reply_markup=botones(), parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: True)
-def handle_query(call):
+def callback(call):
     uid = call.message.chat.id
     data = call.data
 
-    if data == "buy_pack":
+    if data == "buy":
         add_credits(uid, 10)
-        bot.answer_callback_query(call.id, "✅ +10 Créditos")
-        bot.send_message(uid, "🎉 **¡Recarga exitosa!**", reply_markup=generar_botones_monedas(), parse_mode="Markdown")
+        bot.answer_callback_query(call.id, "✅ Recargado")
+        bot.send_message(uid, "🎉 Créditos añadidos.", reply_markup=botones())
         return
 
-    if data.startswith("analyze_"):
+    if data.startswith("a_"):
         coin = data.split("_")[1]
         
         if get_user_credits(uid) <= 0:
-            bot.answer_callback_query(call.id, "🚫 Sin créditos", show_alert=True)
-            bot.send_message(uid, "⚠️ **Sin créditos.** Recarga para continuar.", reply_markup=generar_boton_pago(), parse_mode="Markdown")
+            bot.answer_callback_query(call.id, "🚫 Sin saldo", show_alert=True)
+            bot.send_message(uid, "⚠️ Sin créditos.", reply_markup=btn_pago())
             return
 
         try:
             bot.answer_callback_query(call.id, f"Analizando {coin}...")
-            deduct_credit(uid) # Cobramos
+            deduct_credit(uid)
             
-            # Request a tu API
-            # IMPORTANTE: Asegúrate que tu API http://167.86.80.129:3000 es accesible desde Render
-            response = requests.get(f"{URL_API_VALERY}/ask?crypto={coin}", timeout=90) # Aumenté timeout a 90s por si acaso
+            # Request
+            print(f"📡 Solicitando {coin} a la API...")
+            r = requests.get(f"{URL_API_VALERY}/ask?crypto={coin}", timeout=90)
             
-            if response.status_code == 200:
-                data_json = response.json()
+            if r.status_code == 200:
+                raw_json = r.json()
                 
-                # --- DEBUG LOGGING ---
-                # Si falla, mira los logs de Render, ahí saldrá qué respondió la API
-                print(f"DEBUG {coin}: {str(data_json)[:200]}...") 
+                # --- AQUÍ ESTÁ LA MAGIA ---
+                # Buscamos los datos usando la función inteligente
+                ai_data = buscar_datos_ia(raw_json)
 
-                if 'JSONprompt' in data_json and data_json['JSONprompt'].get('aiResponse'):
-                    # USAMOS LA NUEVA FUNCIÓN DE LIMPIEZA AQUÍ
-                    raw_ai = data_json['JSONprompt']['aiResponse']
-                    ai_data = parsear_respuesta_ia(raw_ai)
-
+                if ai_data and 'prediction' in ai_data:
                     pred = ai_data.get('prediction', {})
                     subida = pred.get('subida', 0)
                     bajada = pred.get('bajada', 0)
                     score = ai_data.get('confidence_score', 0)
-                    razon = ai_data.get('rationale', 'Sin razón disponible.')
+                    razon = ai_data.get('rationale', 'Sin detalle.')
                     tendencia = "🟢 ALCISTA" if subida > bajada else "🔴 BAJISTA"
                     
-                    saldo_restante = get_user_credits(uid)
-                    
-                    mensaje = (
+                    msg = (
                         f"📊 **Análisis {coin}**\n"
                         f"🔮 **Predicción:** {tendencia}\n"
                         f"📈 Subida: {subida}% | 📉 Bajada: {bajada}%\n"
                         f"🎯 Confianza: {score}/10\n\n"
                         f"🧠 _{razon}_\n\n"
-                        f"💰 _Créditos: {saldo_restante}_"
+                        f"💰 Créditos: {get_user_credits(uid)}"
                     )
-                    bot.send_message(call.message.chat.id, mensaje, parse_mode="Markdown")
-                    
+                    bot.send_message(uid, msg, parse_mode="Markdown")
                     time.sleep(1)
-                    bot.send_message(call.message.chat.id, "¿Otra moneda?", reply_markup=generar_botones_monedas())
+                    bot.send_message(uid, "¿Otra?", reply_markup=botones())
                 else:
-                    raise ValueError("Estructura JSONprompt incorrecta o aiResponse vacío")
+                    # SI FALLA: Le mandamos al usuario lo que recibió el bot para debug
+                    # (Esto te ayudará a ver qué está pasando realmente)
+                    error_debug = f"⚠️ Estructura desconocida.\nRecibido: `{str(raw_json)[:300]}...`"
+                    add_credits(uid, 1)
+                    bot.send_message(uid, error_debug, parse_mode="Markdown")
             else:
-                raise ConnectionError(f"Status {response.status_code}")
+                add_credits(uid, 1)
+                bot.send_message(uid, f"⚠️ Error API: {r.status_code}")
 
         except Exception as e:
-            print(f"❌ ERROR FATAL en {coin}: {e}")
-            add_credits(uid, 1) # Devolvemos crédito
-            bot.send_message(call.message.chat.id, f"⚠️ Error en el análisis. Crédito devuelto.\nInfo: {str(e)[:50]}")
+            print(f"ERROR: {e}")
+            add_credits(uid, 1)
+            bot.send_message(uid, f"❌ Error: {e}")
 
-# --- ARRANQUE ---
 if __name__ == "__main__":
     keep_alive()
-    # restart_on_change=True a veces ayuda si el script se congela
     bot.infinity_polling(timeout=20, long_polling_timeout=10)
