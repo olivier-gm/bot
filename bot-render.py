@@ -17,8 +17,8 @@ URL_API_VALERY = 'http://167.86.80.129:3000'
 URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
 
 # Variables Supabase
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "TU_URL_HTTPS_SUPABASE_CO")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "TU_KEY_ANON")
+SUPABASE_URL = "https://aodhfcpabmjvyusrohjh.supabase.co"
+SUPABASE_KEY = "sb_publishable_4_8oRB_GIlwr1f1EskKn0A_YY0uMJPI"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -211,3 +211,4 @@ def callback(call):
 if __name__ == "__main__":
     keep_alive()
     bot.infinity_polling(timeout=20, long_polling_timeout=10)
+
