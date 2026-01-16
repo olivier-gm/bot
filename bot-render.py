@@ -1,28 +1,7 @@
-# coding: utf-8
-import telebot
-import requests
-import json
-import os
-import time
-import re
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from flask import Flask
-from threading import Thread
-from supabase import create_client, Client
-
-# --- 1. CONFIGURACIÓN ---
-TOKEN = '8556444811:AAF0m841XRL-35xSX6g5DNyr-DWoml0JYNA'
-# Tu IP directa del VPS
-URL_API_VALERY = 'http://167.86.80.129:3000' 
-URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
-
-# Variables Supabase
-SUPABASE_URL = "https://aodhfcpabmjvyusrohjh.supabase.co"
-SUPABASE_KEY = "sb_publishable_4_8oRB_GIlwr1f1EskKn0A_YY0uMJPI"
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except:
-    print("⚠️ Error iniciando Supabase (revisar keys)")
+    pass
 
 bot = telebot.TeleBot(TOKEN)
 CREDITOS_INICIALES = 3
@@ -35,7 +14,7 @@ def get_user_credits(user_id):
             supabase.table('users').insert({"user_id": user_id, "credits": CREDITOS_INICIALES}).execute()
             return CREDITOS_INICIALES
         return r.data[0]['credits']
-    except: return 3 # Fallback por seguridad
+    except: return 3 
 
 def deduct_credit(user_id):
     try:
@@ -49,31 +28,45 @@ def add_credits(user_id, amount):
         supabase.table('users').update({"credits": c + amount}).eq("user_id", user_id).execute()
     except: pass
 
-# --- 3. PARSEADOR INTELIGENTE (ADAPTADO A TU JSON) ---
+# --- 3. PARSEADOR BLINDADO (AQUÍ ESTÁ EL ARREGLO) ---
 def normalizar_datos(data):
     """
-    Recibe el JSON y busca 'prediction', 'confidence_score', etc.
-    Soporta tu formato nuevo (raíz) y el viejo (anidado).
+    Convierte cualquier cosa que parezca JSON en un Diccionario de Python real.
+    Evita el error 'str object has no attribute get'.
     """
-    # 1. CASO DIRECTO (Tu formato actual)
-    if 'prediction' in data:
-        return data # Ya es el objeto correcto
-        
-    # 2. CASO VIEJO (JSONprompt -> aiResponse)
-    if 'JSONprompt' in data and 'aiResponse' in data['JSONprompt']:
-        raw = data['JSONprompt']['aiResponse']
-        if isinstance(raw, str):
-            # Limpiar markdown si viene como string
-            clean = raw.replace("```json", "").replace("```", "").strip()
-            return json.loads(clean)
-        return raw
-        
+    # 1. Si ya es un String, intentamos convertirlo a Diccionario sí o sí
+    if isinstance(data, str):
+        try:
+            # Limpiamos basura markdown
+            clean = data.replace("```json", "").replace("```", "").strip()
+            return json.loads(clean) # Convertimos texto -> dict
+        except:
+            # Si falla json.loads, intentamos regex por si hay basura alrededor
+            try:
+                match = re.search(r'\{.*\}', data, re.DOTALL)
+                if match: return json.loads(match.group())
+            except:
+                return None # No se pudo salvar
+
+    # 2. Si ya es un Diccionario (Dict)
+    if isinstance(data, dict):
+        # Opción A: Es el formato nuevo directo
+        if 'prediction' in data:
+            return data
+            
+        # Opción B: Formato viejo (anidado)
+        if 'JSONprompt' in data:
+            return normalizar_datos(data['JSONprompt']) # Recursividad
+            
+        if 'aiResponse' in data:
+            return normalizar_datos(data['aiResponse']) # Recursividad
+
     return None
 
-# --- 4. SERVIDOR WEB + KEEP ALIVE ---
+# --- 4. SERVIDOR WEB ---
 app = Flask('')
 @app.route('/')
-def home(): return "🤖 Bot Online"
+def home(): return "🤖 Bot Fix Online"
 def run_web(): app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
 def ping_loop():
     while True:
@@ -119,7 +112,7 @@ def callback(call):
         
         if get_user_credits(uid) <= 0:
             bot.answer_callback_query(call.id, "🚫 Sin saldo", show_alert=True)
-            bot.send_message(uid, "⚠️ Sin créditos. Recarga:", reply_markup=btn_pago())
+            bot.send_message(uid, "⚠️ Sin créditos.", reply_markup=btn_pago())
             return
 
         try:
@@ -130,14 +123,19 @@ def callback(call):
             r = requests.get(f"{URL_API_VALERY}/ask?crypto={coin}", timeout=90)
             
             if r.status_code == 200:
-                raw_json = r.json()
+                # OJO: r.json() a veces devuelve un STRING si la API hizo un doble stringify
+                raw_data = r.json() 
                 
-                # USAMOS EL NORMALIZADOR NUEVO
-                ai_data = normalizar_datos(raw_json)
+                # Pasamos por el normalizador blindado
+                ai_data = normalizar_datos(raw_data)
 
-                if ai_data and 'prediction' in ai_data:
-                    # Extraer datos con seguridad (.get)
+                # Verificamos que sea un DICCIONARIO antes de usar .get()
+                if ai_data and isinstance(ai_data, dict) and 'prediction' in ai_data:
+                    
                     pred = ai_data.get('prediction', {})
+                    # Si 'prediction' también vino como string (raro pero posible), lo arreglamos
+                    if isinstance(pred, str): pred = json.loads(pred)
+
                     subida = pred.get('subida', 0)
                     bajada = pred.get('bajada', 0)
                     score = ai_data.get('confidence_score', 0)
@@ -157,18 +155,18 @@ def callback(call):
                     time.sleep(1)
                     bot.send_message(uid, "¿Otra?", reply_markup=botones())
                 else:
-                    # Si falla, devolvemos el crédito y mostramos lo que llegó para debug
+                    # Si falla, devolvemos el crédito
                     add_credits(uid, 1)
-                    bot.send_message(uid, f"⚠️ Estructura desconocida.\nRecibido: `{str(raw_json)[:300]}`", parse_mode="Markdown")
+                    debug_info = str(raw_data)[:300]
+                    bot.send_message(uid, f"⚠️ Error de formato IA. Crédito devuelto.\n`{debug_info}`", parse_mode="Markdown")
             else:
                 add_credits(uid, 1)
                 bot.send_message(uid, f"⚠️ Error API: {r.status_code}")
 
         except Exception as e:
             add_credits(uid, 1)
-            bot.send_message(uid, f"❌ Error: {e}")
+            bot.send_message(uid, f"❌ Error Bot: {e}")
 
 if __name__ == "__main__":
     keep_alive()
     bot.infinity_polling()
-
