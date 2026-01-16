@@ -1,3 +1,24 @@
+# coding: utf-8
+import telebot
+import requests
+import json
+import os
+import time
+import re
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from flask import Flask
+from threading import Thread
+from supabase import create_client, Client
+
+# --- 1. CONFIGURACIÓN ---
+TOKEN = '8556444811:AAF0m841XRL-35xSX6g5DNyr-DWoml0JYNA'
+URL_API_VALERY = 'http://167.86.80.129:3000' 
+URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
+
+# Supabase
+SUPABASE_URL = "https://aodhfcpabmjvyusrohjh.supabase.co"
+SUPABASE_KEY = "sb_publishable_4_8oRB_GIlwr1f1EskKn0A_YY0uMJPI"
+
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except:
