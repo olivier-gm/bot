@@ -134,18 +134,25 @@ def botones(user_id):
 
 def btn_pago():
     m = InlineKeyboardMarkup(row_width=1)
-    m.add(InlineKeyboardButton("⭐ 10 Créditos (100 Estrellas)", callback_data="buy_10"))
+    m.add(InlineKeyboardButton("⭐ 50 Créditos (100 Estrellas)", callback_data="buy_50"))
     return m
 
 @bot.message_handler(commands=['start'])
 def start(msg):
     c = get_user_credits(msg.chat.id)
-    bot.reply_to(msg, f"🤖 **Crypto AI**\n💰 Créditos: {c}\nElige una moneda para analizar:", reply_markup=botones(msg.chat.id), parse_mode="Markdown")
+    bot.reply_to(
+            msg, 
+            f"🤖 **Valery AI**\n"
+            f"💰 Créditos: {c}\n\n"
+            f"Selecciona una criptomoneda para **proyectar su comportamiento** en las **próximas 1 a 3 horas**:", 
+            reply_markup=botones(msg.chat.id), 
+            parse_mode="Markdown"
+        )
 
 @bot.message_handler(commands=['test_pay'])
 def simular_pago(msg):
     if msg.chat.id != ADMIN_ID: return 
-    add_credits(msg.chat.id, 10)
+    add_credits(msg.chat.id, 50)
     bot.send_message(msg.chat.id, "✅ Simulacion OK", parse_mode="Markdown")
 
 # --- 6. CALLBACKS Y PAGOS ---
@@ -161,14 +168,14 @@ def callback(call):
         return
 
     # --- PAGO ---
-    if data == "buy_10":
+    if data == "buy_50":
         if uid == ADMIN_ID:
-            add_credits(uid, 10)
+            add_credits(uid, 50)
             bot.answer_callback_query(call.id, "✅ Admin Recargado")
             return
 
-        bot.send_invoice(uid, "Paquete 10 Créditos", "Recarga estándar.", "10_credits_pack", 
-                         PAYMENT_TOKEN, "XTR", [LabeledPrice("10 Créditos", 100)])
+        bot.send_invoice(uid, "Paquete 50 Créditos", "Recarga estándar.", "50_credits_pack", 
+                         PAYMENT_TOKEN, "XTR", [LabeledPrice("50 Créditos", 100)])
         return
 
     # --- LÓGICA DE ANÁLISIS ---
@@ -224,11 +231,13 @@ def callback(call):
                     
                     if ai_data and isinstance(ai_data, dict) and 'prediction' in ai_data:
                         pred = ai_data.get('prediction', {})
+                        razon = ai_data.get('rationale', 'Sin detalle.')
                         if isinstance(pred, str): pred = json.loads(pred)
                         tendencia = "🟢 ALCISTA" if pred.get('subida', 0) > pred.get('bajada', 0) else "🔴 BAJISTA"
                         
                         msg = (f"📊 **Análisis {coin}**\n🔮 {tendencia}\n"
-                               f"📈 {pred.get('subida')}% | 📉 {pred.get('bajada')}%\n"
+                               f"📈 {pred.get('subida')}% | 📉 {pred.get('bajada')}%\n\n"
+                               f"🧠 _{razon}_\n\n"
                                f"💰 Créditos: {get_user_credits(uid)}")
                         
                         bot.send_message(uid, msg, parse_mode="Markdown")
@@ -242,7 +251,13 @@ def callback(call):
                         time.sleep(1) 
                         
                         # Enviamos el menú actualizado (con la moneda bloqueada)
-                        bot.send_message(uid, "🔎 **¿Analizar otra moneda?**\n_Nota: La moneda anterior estará bloqueada 1h por seguridad de la predicción._", reply_markup=botones(uid), parse_mode="Markdown")
+                        bot.send_message(
+                            uid, 
+                            "🔎 **¿Analizar otra criptomoneda?**\n"
+                            "_Nota: Esta predicción tiene una vigencia estimada de 1 a 3 horas._", 
+                            reply_markup=botones(uid), 
+                            parse_mode="Markdown"
+                        )
                     else:
                         add_credits(uid, 1)
                         bot.send_message(uid, "⚠️ Error formato IA. Crédito devuelto.", reply_markup=botones(uid))
@@ -273,11 +288,11 @@ def got_payment(message):
     uid = message.chat.id
     payment_info = message.successful_payment # Corregido: definimos la variable para usarla abajo
     
-    if payment_info.invoice_payload == "10_credits_pack":
-        add_credits(uid, 10)
+    if payment_info.invoice_payload == "50_credits_pack":
+        add_credits(uid, 50)
         bot.send_message(uid, 
                          f"✅ **¡Pago Recibido!**\n\n"
-                         f"Se han añadido **10 créditos** a tu cuenta.\n"
+                         f"Se han añadido **50 créditos** a tu cuenta.\n"
                          f"💰 Total: {payment_info.total_amount} Estrellas\n"
                          f"Créditos actuales: {get_user_credits(uid)}",
                          parse_mode="Markdown",
