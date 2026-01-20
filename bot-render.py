@@ -49,7 +49,7 @@ except:
     pass
 
 bot = telebot.TeleBot(TOKEN)
-CREDITOS_INICIALES = 3
+CREDITOS_INICIALES = 5
 
 # --- 2. BASE DE DATOS ---
 def get_user_credits(user_id):
@@ -59,7 +59,7 @@ def get_user_credits(user_id):
             supabase.table('users').insert({"user_id": user_id, "credits": CREDITOS_INICIALES}).execute()
             return CREDITOS_INICIALES
         return r.data[0]['credits']
-    except: return 3 
+    except: return 5 
 
 def deduct_credit(user_id):
     try:
@@ -134,7 +134,7 @@ def botones(user_id):
 
 def btn_pago():
     m = InlineKeyboardMarkup(row_width=1)
-    m.add(InlineKeyboardButton("⭐ 50 Créditos (100 Estrellas)", callback_data="buy_50"))
+    m.add(InlineKeyboardButton("⭐ 30 Créditos (100 Estrellas)", callback_data="buy_30"))
     return m
 
 @bot.message_handler(commands=['start'])
@@ -152,7 +152,7 @@ def start(msg):
 @bot.message_handler(commands=['test_pay'])
 def simular_pago(msg):
     if msg.chat.id != ADMIN_ID: return 
-    add_credits(msg.chat.id, 50)
+    add_credits(msg.chat.id, 30)
     bot.send_message(msg.chat.id, "✅ Simulacion OK", parse_mode="Markdown")
 
 # --- 6. CALLBACKS Y PAGOS ---
@@ -168,14 +168,14 @@ def callback(call):
         return
 
     # --- PAGO ---
-    if data == "buy_50":
+    if data == "buy_30":
         if uid == ADMIN_ID:
-            add_credits(uid, 50)
+            add_credits(uid, 30)
             bot.answer_callback_query(call.id, "✅ Admin Recargado")
             return
 
-        bot.send_invoice(uid, "Paquete 50 Créditos", "Recarga estándar.", "50_credits_pack", 
-                         PAYMENT_TOKEN, "XTR", [LabeledPrice("50 Créditos", 100)])
+        bot.send_invoice(uid, "Paquete 30 Créditos", "Recarga estándar.", "30_credits_pack", 
+                         PAYMENT_TOKEN, "XTR", [LabeledPrice("30 Créditos", 100)])
         return
 
     # --- LÓGICA DE ANÁLISIS ---
@@ -288,11 +288,11 @@ def got_payment(message):
     uid = message.chat.id
     payment_info = message.successful_payment # Corregido: definimos la variable para usarla abajo
     
-    if payment_info.invoice_payload == "50_credits_pack":
-        add_credits(uid, 50)
+    if payment_info.invoice_payload == "30_credits_pack":
+        add_credits(uid, 30)
         bot.send_message(uid, 
                          f"✅ **¡Pago Recibido!**\n\n"
-                         f"Se han añadido **50 créditos** a tu cuenta.\n"
+                         f"Se han añadido **30 créditos** a tu cuenta.\n"
                          f"💰 Total: {payment_info.total_amount} Estrellas\n"
                          f"Créditos actuales: {get_user_credits(uid)}",
                          parse_mode="Markdown",
