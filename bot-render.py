@@ -14,11 +14,13 @@ from supabase import create_client, Client
 TOKEN = '8556444811:AAF0m841XRL-35xSX6g5DNyr-DWoml0JYNA'
 
 # Token de Ammer Pay integrado
-PAYMENT_TOKEN = '6073714100:TEST:TG_VRtwi3GRe6srtlAUKl1Xk8gA'
-
+# --- EN LA PARTE DE CONFIGURACIÓN ---
+# Para Telegram Stars, el token de pago se deja como cadena vacía
+PAYMENT_TOKEN = "" 
 URL_API_VALERY = 'http://167.86.80.129:3000' 
 URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
 ADMIN_ID = 1183118456  # Tu ID para recargas gratis
+ADMIN_ID = 1183128456  # Admin id random temporal
 
 # Supabase
 SUPABASE_URL = "https://aodhfcpabmjvyusrohjh.supabase.co"
@@ -118,25 +120,27 @@ def callback(call):
     data = call.data
 
     # --- LÓGICA DE RECARGA ---
+
+
+# --- EN LA FUNCIÓN CALLBACK (Donde está el botón de comprar) ---
     if data == "buy":
-        # CASO 1: Admin (Tú) - Recarga Gratis
+        # CASO 1: Admin
         if uid == ADMIN_ID:
             add_credits(uid, 10)
-            bot.answer_callback_query(call.id, "✅ Modo Dios: Recargado Gratis")
-            bot.send_message(uid, "👑 **Admin:** Te has dado 10 créditos gratis.", reply_markup=botones(), parse_mode="Markdown")
+            bot.answer_callback_query(call.id, "✅ Recargado Gratis")
             return
         
-        # CASO 2: Usuario Normal - Enviar Factura Ammer Pay
+        # CASO 2: Usuario Normal - PAGO CON ESTRELLAS (XTR)
         else:
-            bot.answer_callback_query(call.id, "Generando factura cripto...")
+            bot.answer_callback_query(call.id, "Creando factura en Estrellas...")
             bot.send_invoice(
                 uid,
-                title="Paquete de 10 Créditos",
-                description="Acceso al bot de análisis Crypto AI.",
+                title="10 Créditos",
+                description="Recarga saldo para usar el bot Crypto AI.",
                 invoice_payload="10_credits_pack", 
-                provider_token=PAYMENT_TOKEN, 
-                currency="USD", # Moneda base (Ammer cobrará el equivalente en cripto)
-                prices=[LabeledPrice("10 Créditos", 199)], # 199 centavos = $1.99 USD
+                provider_token=PAYMENT_TOKEN, # SE DEJA VACÍO
+                currency="XTR", # CÓDIGO DE LAS ESTRELLAS
+                prices=[LabeledPrice("10 Créditos", 100)], # 100 Estrellas (aprox $2 USD)
                 start_parameter="create_invoice"
             )
             return
@@ -224,3 +228,4 @@ def got_payment(message):
 if __name__ == "__main__":
     keep_alive()
     bot.infinity_polling()
+
