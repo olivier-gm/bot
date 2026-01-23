@@ -97,9 +97,9 @@ TRANSLATIONS = {
 
 def get_msg(lang_code, key, **kwargs):
     # Normalizar idioma (ej: 'es-ES' -> 'es')
-    lang = lang_code.split('-')[0] if lang_code else 'es'
+    lang = lang_code.split('-')[0] if lang_code else 'en'
     if lang not in TRANSLATIONS:
-        lang = 'es' # Fallback a español si no es en/pt
+        lang = 'en' # Fallback a español si no es en/pt
     return TRANSLATIONS[lang].get(key, "Text missing").format(**kwargs)
 
 # --- GESTIÓN DE COOLDOWN (ENFRIAMIENTO) ---
@@ -385,3 +385,4 @@ def got_payment(message):
 if __name__ == "__main__":
     keep_alive()
     bot.infinity_polling()
+
