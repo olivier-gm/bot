@@ -221,9 +221,10 @@ def btn_pago(lang_code='es'):
 
 @bot.message_handler(commands=['start'])
 def start(msg):
-    c = get_user_credits(msg.chat.id)
     # Detectar idioma
     lang = msg.from_user.language_code
+
+    c = get_user_credits(msg.chat.id)
     
     bot.reply_to(
             msg, 
@@ -250,6 +251,16 @@ def callback(call):
 
     # --- INFORMACIÓN DE ESPERA ---
     if data.startswith("wait_"):
+        # Intentamos actualizar el teclado para ver el tiempo nuevo
+        try:
+            bot.edit_message_reply_markup(
+                chat_id=uid, 
+                message_id=mid, 
+                reply_markup=botones(uid, lang)
+            )
+        except: 
+            pass # Si el tiempo (minutos) no ha cambiado, telegram da error, lo ignoramos
+
         bot.answer_callback_query(call.id, get_msg(lang, 'wait_alert'), show_alert=True)
         return
 
@@ -385,4 +396,3 @@ def got_payment(message):
 if __name__ == "__main__":
     keep_alive()
     bot.infinity_polling()
-
