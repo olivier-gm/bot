@@ -17,7 +17,7 @@ PAYMENT_TOKEN = ""
 URL_API_VALERY = 'http://167.86.80.129:3000' 
 URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
 ADMIN_ID = 1183118456 
-ADMIN_ID = 1183118456 
+ADMIN_ID2 = 8315482191 
 
 # --- SISTEMA DE TRADUCCIÓN ---
 TRANSLATIONS = {
@@ -235,7 +235,7 @@ def start(msg):
 
 @bot.message_handler(commands=['test_pay'])
 def simular_pago(msg):
-    if msg.chat.id != ADMIN_ID: return 
+    if msg.chat.id != ADMIN_ID or msg.chat.id != ADMIN_ID2: return 
     add_credits(msg.chat.id, 30)
     # Este mensaje es solo para admin, lo dejo hardcodeado o puedes traducirlo
     bot.send_message(msg.chat.id, "✅ Simulacion OK", parse_mode="Markdown")
@@ -266,7 +266,7 @@ def callback(call):
 
     # --- PAGO ---
     if data == "buy_30":
-        if uid == ADMIN_ID:
+        if uid == ADMIN_ID or uid == ADMIN_ID2:
             add_credits(uid, 30)
             bot.answer_callback_query(call.id, get_msg(lang, 'admin_load'))
             return
@@ -396,3 +396,4 @@ def got_payment(message):
 if __name__ == "__main__":
     keep_alive()
     bot.infinity_polling()
+
