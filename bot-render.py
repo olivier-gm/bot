@@ -4,6 +4,7 @@ import json
 import os
 import time
 import re
+from datetime import datetime, timezone
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
 from flask import Flask
 from threading import Thread, Semaphore
@@ -17,7 +18,7 @@ PAYMENT_TOKEN = ""
 URL_API_VALERY = 'http://167.86.80.129:3000' 
 URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
 ADMIN_ID = 1183118456 
-ADMIN_ID2 = 6526895386 
+ADMIN_ID2 = 2079143773 
 
 # --- SISTEMA DE TRADUCCIÓN ---
 TRANSLATIONS = {
@@ -142,6 +143,34 @@ def get_user_credits(user_id):
         return r.data[0]['credits']
     except: return 5 
 
+def update_user_info(from_user):
+    """Actualiza la información del perfil del usuario en la base de datos.
+    Recolecta: username, first_name, last_name, language_code, is_premium, is_bot, last_active.
+    Se llama en cada interacción para mantener los datos actualizados."""
+    try:
+        user_id = from_user.id
+        user_data = {
+            "username": from_user.username or None,
+            "first_name": from_user.first_name or None,
+            "last_name": from_user.last_name or None,
+            "language_code": from_user.language_code or None,
+            "is_premium": bool(from_user.is_premium) if from_user.is_premium else False,
+            "is_bot": bool(from_user.is_bot) if from_user.is_bot else False,
+            "last_active": datetime.now(timezone.utc).isoformat()
+        }
+        # Verificar si el usuario ya existe
+        r = supabase.table('users').select("user_id").eq("user_id", user_id).execute()
+        if r.data:
+            # Actualizar datos existentes
+            supabase.table('users').update(user_data).eq("user_id", user_id).execute()
+        else:
+            # Crear nuevo usuario con toda la info
+            user_data["user_id"] = user_id
+            user_data["credits"] = CREDITOS_INICIALES
+            supabase.table('users').insert(user_data).execute()
+    except Exception as e:
+        print(f"Error actualizando info de usuario: {e}")
+
 def deduct_credit(user_id):
     try:
         c = get_user_credits(user_id)
@@ -224,6 +253,9 @@ def start(msg):
     # Detectar idioma
     lang = msg.from_user.language_code
 
+    # Actualizar/guardar info del usuario en cada /start
+    update_user_info(msg.from_user)
+
     c = get_user_credits(msg.chat.id)
     
     bot.reply_to(
@@ -248,6 +280,9 @@ def callback(call):
     data = call.data
     # Detectar idioma del usuario que hizo clic
     lang = call.from_user.language_code
+
+    # Actualizar info del usuario en cada interacción
+    update_user_info(call.from_user)
 
     # --- INFORMACIÓN DE ESPERA ---
     if data.startswith("wait_"):
@@ -396,4 +431,3 @@ def got_payment(message):
 if __name__ == "__main__":
     keep_alive()
     bot.infinity_polling()
-
