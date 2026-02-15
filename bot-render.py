@@ -17,7 +17,7 @@ PAYMENT_TOKEN = ""
 URL_API_VALERY = 'http://167.86.80.129:3000' 
 URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
 ADMIN_ID = 1183118456 
-ADMIN_ID2 = 8315482191 
+ADMIN_ID2 = 6526895386 
 
 # --- SISTEMA DE TRADUCCIÓN ---
 TRANSLATIONS = {
@@ -192,7 +192,7 @@ def keep_alive():
 # Modificado para aceptar idioma
 def botones(user_id, lang_code='es'):
     m = InlineKeyboardMarkup(row_width=3)
-    coins = ["BTC", "ETH", "XRP", "SOL", "LTC", "RAY"]
+    coins = ["BTC", "ETH", "XRP", "SOL", "LTC", "ASTER"]
     btns = []
     
     now = time.time()
