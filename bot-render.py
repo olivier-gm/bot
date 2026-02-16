@@ -224,13 +224,14 @@ def botones(user_id, lang_code='es'):
     coins = ["BTC", "ETH", "XRP", "SOL", "LTC", "ASTER"]
     btns = []
     
+    is_admin = user_id in (ADMIN_ID, ADMIN_ID2)
     now = time.time()
     user_times = USER_COOLDOWNS.get(user_id, {})
 
     for c in coins:
         unlock_time = user_times.get(c, 0)
         
-        if now < unlock_time:
+        if not is_admin and now < unlock_time:
             minutes_left = int((unlock_time - now) / 60)
             # Traducción del botón de espera
             txt = get_msg(lang_code, 'wait_btn', coin=c, min=minutes_left)
@@ -323,12 +324,13 @@ def callback(call):
             bot.send_message(uid, get_msg(lang, 'no_balance_msg'), reply_markup=btn_pago(lang), parse_mode="Markdown")
             return
 
-        # 2. Verificar Cooldown
-        now = time.time()
-        unlock_time = USER_COOLDOWNS.get(uid, {}).get(coin, 0)
-        if now < unlock_time:
-            bot.answer_callback_query(call.id, get_msg(lang, 'cooldown_alert'), show_alert=True)
-            return
+        # 2. Verificar Cooldown (los admins no tienen cooldown)
+        if uid not in (ADMIN_ID, ADMIN_ID2):
+            now = time.time()
+            unlock_time = USER_COOLDOWNS.get(uid, {}).get(coin, 0)
+            if now < unlock_time:
+                bot.answer_callback_query(call.id, get_msg(lang, 'cooldown_alert'), show_alert=True)
+                return
 
         # --- UX: PANTALLA DE CARGA ---
         bot.edit_message_text(
@@ -353,7 +355,7 @@ def callback(call):
                 deduct_credit(uid)
                 
                 # Petición al Backend
-                r = http.get(f"{URL_API_VALERY}/ask?crypto={coin}", timeout=90)
+                r = http.post(f"{URL_API_VALERY}/ask?crypto={coin}", timeout=90)
                 
                 if r.status_code == 200:
                     raw_data = r.json() 
@@ -378,9 +380,10 @@ def callback(call):
                         
                         bot.send_message(uid, msg, parse_mode="Markdown")
                         
-                        # --- GUARDAR COOLDOWN ---
-                        if uid not in USER_COOLDOWNS: USER_COOLDOWNS[uid] = {}
-                        USER_COOLDOWNS[uid][coin] = time.time() + TIEMPO_ESPERA
+                        # --- GUARDAR COOLDOWN (no aplica a admins) ---
+                        if uid not in (ADMIN_ID, ADMIN_ID2):
+                            if uid not in USER_COOLDOWNS: USER_COOLDOWNS[uid] = {}
+                            USER_COOLDOWNS[uid][coin] = time.time() + TIEMPO_ESPERA
                         
                         time.sleep(1) 
                         
