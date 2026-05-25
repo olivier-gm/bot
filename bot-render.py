@@ -11,15 +11,22 @@ from threading import Thread, Semaphore
 from supabase import create_client, Client
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- 1. CONFIGURACIÓN ---
-TOKEN = '8556444811:AAF0m841XRL-35xSX6g5DNyr-DWoml0JYNA'
+TOKEN = os.getenv('TELEGRAM_TOKEN')
 PAYMENT_TOKEN = "" 
 URL_API_VALERY = 'http://167.86.80.129:3000' 
 URL_PROPIA_DEL_BOT = "https://bot-sol7.onrender.com"
 ADMIN_ID = 1183118456 
 ADMIN_ID2 = 2079143773 
 
+# Validación para asegurar que el token existe
+if not TOKEN:
+    raise ValueError("No se encontró el TOKEN de Telegram en las variables de entorno.")
+    
 # --- SISTEMA DE TRADUCCIÓN ---
 TRANSLATIONS = {
     'es': {
